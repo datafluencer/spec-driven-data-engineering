@@ -61,6 +61,14 @@ name is the correct business term merely because it exists in the source.
 Use meaningful noun-based names for business concepts. Names should
 communicate the subject represented by the object or attribute.
 
+Object names representing a business concept must use the singular form of
+the approved business term, even when the object contains multiple
+instances of that concept. For dimensional modeling, this means the
+business-concept portion of a dimension or fact name must be singular —
+for example, a pattern such as `DIM_<singular business concept>` or
+`FACT_<singular business process or concept>`, rather than a pluralized
+form of that concept.
+
 Use consistent class words where they improve clarity and predictability.
 Useful class-word concepts include:
 
@@ -79,11 +87,28 @@ Useful class-word concepts include:
 * Percentage
 * Indicator
 
-A class word should communicate the nature of the data represented, not
-simply be appended mechanically. For example, an attribute representing a
-monetary value should use an appropriate monetary class word such as
-`Amount`, while an attribute representing a quantity should use `Quantity`.
-Do not force a class word where doing so makes the name less clear.
+A class word describes the nature of an attribute; it does not by itself
+constitute a complete, contextually clear column name. Generic class words
+must not normally be used alone as a complete column name — for example, a
+monetary attribute should combine its business subject with an appropriate
+monetary class word (business subject + `Amount`), and a quantity attribute
+should combine its business subject with `Quantity` (business subject +
+`Quantity`), rather than using the class word alone. The general pattern is
+`<business subject>_<attribute or class word>`. An object or table name
+that supplies the missing business subject does not satisfy this
+requirement — a column name must remain understandable on its own, without
+depending solely on the object that contains it.
+
+Where an approved business concept appears within a column name, use the
+singular form of the approved business term, consistent with the Business
+Specification's authoritative terminology. Do not invent alternate
+singular terminology.
+
+Do not force a class word, and do not repeat a business-subject qualifier,
+where doing so would create meaningless redundancy (for example, restating
+the same word twice) rather than added clarity. This narrow exception does
+not permit omitting the business subject from a column name; the intent is
+contextual clarity, not mechanical duplication.
 
 ## Identifiers
 
@@ -149,15 +174,20 @@ business definitions used throughout the data product.
 
 ## Snowflake Object Naming
 
-Use consistent Snowflake-compatible object naming. For physical Snowflake
-objects, prefer:
+For Snowflake implementations, all physical Snowflake identifiers must use
+`UPPER_SNAKE_CASE`. This applies, where relevant, to databases, schemas,
+tables, views, columns, Semantic Views, and other named Snowflake objects.
 
-* uppercase names
-* words separated with underscores
-* no spaces
-* no unnecessary quoted identifiers
-* names that remain understandable without requiring source-system
-  knowledge
+Physical Snowflake identifiers must:
+
+* use uppercase names
+* separate words with underscores
+* contain no spaces
+* remain understandable without requiring source-system knowledge
+
+Do not introduce mixed-case or lowercase physical Snowflake identifiers.
+Quoted mixed-case identifiers must not be introduced merely to preserve
+alternative casing. Avoid unnecessary quoted identifiers generally.
 
 Do not establish project-specific database or schema names in this
 reusable Skill. Specific database/schema naming requirements may be defined
