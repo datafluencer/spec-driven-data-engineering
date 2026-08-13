@@ -80,8 +80,8 @@ business concept **Sales Region**. See
 | `O_ORDERKEY` | Unique physical identifier for a Sale. |
 | `O_CUSTKEY` | Foreign key identifying the Account that placed the Sale. |
 | `O_ORDERDATE` | The date the Sale was placed. |
-| `O_ORDERSTATUS` | A physical status code describing the order's fulfillment state. Observed values are `O` (open), `F` (finished/fully filled), and `P` (partially filled/pending). Per established TPC-H semantics, `O_ORDERSTATUS` is derived from the fulfillment status of the order's Sale Lines: it is `F` only when every Sale Line belonging to the order has been fulfilled. This is the physical representation of the approved Completed Sale business rule. See [Sales — Completed Sale Mapping](#sales--completed-sale-mapping) below. |
-| `O_TOTALPRICE` | A physical total order amount. **Interpretation note:** per TPC-H conventions, `O_TOTALPRICE` is derived to include tax (`L_TAX`) as well as discount, whereas the approved Revenue definition is explicitly "the value of products sold after applicable discounts" and does not reference tax. `O_TOTALPRICE` should therefore **not** be treated as equivalent to the business Revenue measure; Revenue must be derived from `LINEITEM` attributes (see [Revenue](#revenue)). |
+| `O_ORDERSTATUS` | A physical status code describing the order's fulfillment state, derived from the fulfillment status of the order's Sale Lines. Per established TPC-H semantics: `O` (open) when none of the order's Sale Lines have been fulfilled, `F` (finished) when every Sale Line belonging to the order has been fulfilled, and `P` (partially filled/pending) when some but not all Sale Lines have been fulfilled. See [Order and Sale Line Status Semantics](#order-and-sale-line-status-semantics) below. |
+| `O_TOTALPRICE` | A physical total order amount. Per TPC-H conventions, `O_TOTALPRICE` is derived to include both tax (`L_TAX`) and discount effects across the order's Sale Lines, which differs from the gross-value and discount attributes available individually at the Sale Line grain (`L_EXTENDEDPRICE`, `L_DISCOUNT`). |
 
 Other `ORDERS` attributes (`O_ORDERPRIORITY`, `O_CLERK`, `O_SHIPPRIORITY`,
 `O_COMMENT`) are not required to support the approved KPIs or business
@@ -107,12 +107,12 @@ Account). `ORDERS.O_ORDERKEY` is referenced by `LINEITEM.L_ORDERKEY` (Sale
 | `L_LINENUMBER` | The line's sequence number within the Sale. |
 | `L_PARTKEY` | Foreign key identifying the Product sold on this Sale Line. |
 | `L_SUPPKEY` | Foreign key identifying the Vendor that supplied the Product on this specific Sale Line. |
-| `L_QUANTITY` | The quantity of the Product sold on this Sale Line. Source attribute for the Units Sold KPI. |
-| `L_EXTENDEDPRICE` | The gross price of the Sale Line before discount. Component of the Revenue calculation. |
-| `L_DISCOUNT` | The discount fraction applied to this Sale Line. Component of the Revenue calculation. |
-| `L_TAX` | The tax fraction applied to this Sale Line. **Not** part of the Revenue calculation, since the approved Revenue definition is discount-based only and does not reference tax. |
-| `L_RETURNFLAG` | Indicates whether the Sale Line was returned. Per established TPC-H semantics, a value of `R` indicates the Sale Line was returned. This is the physical representation of the approved rule that returned Sale Lines are excluded from Revenue and Units Sold. See [Returned Sale Lines Mapping](#returned-sale-lines-mapping) below. |
-| `L_LINESTATUS` | A physical line-level status (`O` or `F`) that contributes to how `O_ORDERSTATUS` is derived at the Sale level. See [Sales — Completed Sale Mapping](#sales--completed-sale-mapping). |
+| `L_QUANTITY` | The quantity of the Product sold on this Sale Line. |
+| `L_EXTENDEDPRICE` | The gross extended price of the Sale Line before discount. |
+| `L_DISCOUNT` | The discount fraction applied to this Sale Line. |
+| `L_TAX` | The tax fraction applied to this Sale Line. |
+| `L_RETURNFLAG` | Indicates whether the Sale Line was returned. Per established TPC-H semantics, a value of `R` indicates the Sale Line was returned. See [Return Status Semantics](#return-status-semantics) below. |
+| `L_LINESTATUS` | A physical line-level status (`O` or `F`) that contributes to how `O_ORDERSTATUS` is derived at the Sale level. See [Order and Sale Line Status Semantics](#order-and-sale-line-status-semantics) below. |
 | `L_SHIPDATE`, `L_COMMITDATE`, `L_RECEIPTDATE` | Fulfillment-related dates at the Sale Line grain (shipped, committed, and received dates respectively). See [Dates and Time Context](#dates-and-time-context). |
 
 Other `LINEITEM` attributes (`L_SHIPINSTRUCT`, `L_SHIPMODE`, `L_COMMENT`)
@@ -140,9 +140,9 @@ Sale). `LINEITEM.L_PARTKEY` → `PART.P_PARTKEY` (Sale Line → Product).
 `P_RETAILPRICE` and other `PART` attributes (`P_MFGR`, `P_BRAND`, `P_TYPE`,
 `P_SIZE`, `P_CONTAINER`, `P_COMMENT`) are not required to support the
 approved KPIs or business questions and are excluded from this context.
-Note that `P_RETAILPRICE` is a catalog list price and is not used in the
-Revenue calculation, which is derived from actual `LINEITEM` transaction
-attributes.
+`P_RETAILPRICE` is a catalog list price, distinct from the transaction-level
+Sale Line attributes (`L_EXTENDEDPRICE`, `L_DISCOUNT`) recorded on
+`LINEITEM`.
 
 **Relationships:** `PART.P_PARTKEY` is referenced by `LINEITEM.L_PARTKEY`
 (Product → Sale Line).
@@ -243,110 +243,73 @@ approved business questions or support the approved KPIs.
 
 ---
 
-## KPI Source Interpretation
+## Source Representation of Required Business Elements
 
-### Revenue
+The Business Specification (`specification/sales-analytics-spec.md`)
+defines the authoritative business meaning of Revenue, Sales, Units Sold,
+and Average Sale Value, along with the business questions those elements
+must support. This section documents the physical TPC-H attributes
+relevant to those business elements. It maps physical source facts to the
+business elements that need them; it does not restate the business
+definitions themselves and does not prescribe calculation or filtering
+logic. Deriving an implementation from these facts — combined with the
+Business Specification and applicable Skills — is the responsibility of
+the engineering agent.
 
-**Business definition (approved):** "The value of products sold after
-applicable discounts. Returned Sale Lines are excluded."
+### Business Element to Physical Attribute Mapping
 
-Relevant physical attributes: `LINEITEM.L_EXTENDEDPRICE` and
-`LINEITEM.L_DISCOUNT`, both at the Sale Line grain. Together these
-attributes represent the gross line value and the discount fraction applied
-to that line, which in combination express "value... after applicable
-discounts" at the Sale Line grain. `LINEITEM.L_TAX` is not part of this
-business definition, since the definition does not reference tax.
-`ORDERS.O_TOTALPRICE` should not be used, since it includes tax (see
-`ORDERS` interpretation note above). Sale Lines where
-`LINEITEM.L_RETURNFLAG = 'R'` represent returned Sale Lines and must be
-excluded from the Revenue calculation. See
-[Returned Sale Lines Mapping](#returned-sale-lines-mapping) below.
+* Sale identifier → `ORDERS.O_ORDERKEY`
+* Sale date → `ORDERS.O_ORDERDATE`
+* Sale fulfillment status → `ORDERS.O_ORDERSTATUS`
+* Sale Line quantity → `LINEITEM.L_QUANTITY`
+* Sale Line gross value before discount → `LINEITEM.L_EXTENDEDPRICE`
+* Sale Line discount fraction → `LINEITEM.L_DISCOUNT`
+* Sale Line tax fraction → `LINEITEM.L_TAX`
+* Sale Line return status → `LINEITEM.L_RETURNFLAG`
+* Sale Line fulfillment status → `LINEITEM.L_LINESTATUS`
+* Product identifier for a Sale Line → `LINEITEM.L_PARTKEY`
+* Vendor identifier for a Sale Line → `LINEITEM.L_SUPPKEY`
+* Order total amount (tax- and discount-inclusive) → `ORDERS.O_TOTALPRICE`
 
-### Sales
+### Order and Sale Line Status Semantics
 
-**Business definition (approved):** "The number of distinct completed
-Sales. A Sale is considered completed when all of its Sale Lines have been
-fulfilled."
+`ORDERS.O_ORDERSTATUS` and `LINEITEM.L_LINESTATUS` are related physical
+status attributes. Per established TPC-H semantics:
 
-Relevant physical identifier: `ORDERS.O_ORDERKEY`, one per Sale.
+* `LINEITEM.L_LINESTATUS` carries a value of `O` (open) or `F` (finished)
+  at the individual Sale Line grain.
+* `ORDERS.O_ORDERSTATUS` is derived from the `L_LINESTATUS` values of all
+  Sale Lines belonging to that order: it is `F` when every Sale Line has a
+  status of `F`, `O` when none do, and `P` (partial) when some but not all
+  do.
 
-#### Sales — Completed Sale Mapping
+These are source-system status semantics only. Which status value(s)
+correspond to a given business condition is determined by combining this
+physical semantics with the relevant business definition in the Business
+Specification.
 
-`ORDERS.O_ORDERSTATUS` carries a physical status of `O` (open), `F`
-(finished), or `P` (partially filled/pending), derived from the line-level
-`LINEITEM.L_LINESTATUS` values (`O` or `F`) of the Sale Lines belonging to
-the order. Per established TPC-H semantics, an order's status is `F` only
-when every Sale Line belonging to that order has been fulfilled (i.e. every
-associated `LINEITEM.L_LINESTATUS = 'F'`); it is `O` when none have been
-fulfilled, and `P` when some but not all have been fulfilled.
+### Return Status Semantics
 
-This maps directly to the approved Completed Sale definition: a Sale is
-completed — and should be counted in the Sales KPI — when
-`ORDERS.O_ORDERSTATUS = 'F'`. `O` and `P` orders do not satisfy the
-approved definition, since at least one Sale Line has not been fulfilled.
+`LINEITEM.L_RETURNFLAG = 'R'` indicates, per established TPC-H semantics,
+that a Sale Line was returned.
 
-Note that whether a Sale Line was returned (`LINEITEM.L_RETURNFLAG`) is a
-separate physical attribute from whether it was fulfilled
-(`LINEITEM.L_LINESTATUS`). The approved Completed Sale definition depends
-only on fulfillment; it is not affected by returns. See
-[Sales Count and Returns](#sales-count-and-returns) below.
-
-### Units Sold
-
-**Business definition (approved):** "The total quantity of Products sold,
-excluding returned Sale Lines."
-
-Relevant physical attribute: `LINEITEM.L_QUANTITY`, at the Sale Line grain.
-Sale Lines where `LINEITEM.L_RETURNFLAG = 'R'` represent returned Sale
-Lines and must be excluded from the Units Sold calculation. See
-[Returned Sale Lines Mapping](#returned-sale-lines-mapping) below.
-
-### Average Sale Value
-
-**Business definition (approved, unchanged):** "Revenue divided by the
-number of Sales."
-
-This is a derived measure. Its numerator is the Revenue calculation
-described above (aggregated from `LINEITEM.L_EXTENDEDPRICE` and
-`LINEITEM.L_DISCOUNT`, excluding Sale Lines where
-`LINEITEM.L_RETURNFLAG = 'R'`). Its denominator is the count of Sales
-described above, restricted to Sales where `ORDERS.O_ORDERSTATUS = 'F'`
-(the approved Completed Sale definition). The numerator's returned-line
-exclusion and the denominator's completed-Sale restriction are independent
-physical filters and must both be applied, each per its own approved
-business rule.
-
-#### Returned Sale Lines Mapping
-
-Per established TPC-H semantics, `LINEITEM.L_RETURNFLAG = 'R'` identifies a
-Sale Line as returned. This is the physical representation of the approved
-business rule that returned Sale Lines are excluded from Revenue and Units
-Sold.
-
-#### Sales Count and Returns
-
-A returned Sale Line (`LINEITEM.L_RETURNFLAG = 'R'`) does not, on its own,
-cause the parent Sale to be excluded from the Sales KPI. The approved
-business decision excludes returned Sale Lines only from Revenue and Units
-Sold. Whether a Sale counts toward the Sales KPI is governed solely by the
-Completed Sale mapping above (`ORDERS.O_ORDERSTATUS = 'F'`), which reflects
-fulfillment, not returns.
+`L_RETURNFLAG` and `L_LINESTATUS` are independent physical attributes
+recorded separately at the Sale Line grain — a Sale Line's return status
+does not determine, and is not determined by, its fulfillment status.
 
 ## Dates and Time Context
 
 `ORDERS.O_ORDERDATE` is the date the Sale was placed and is the only date
-attribute at the Sale grain. Since the Business Specification defines a
-Sale as a transaction "placed by an Account," `O_ORDERDATE` is the physical
-attribute that corresponds to when a Sale occurred.
+attribute at the Sale grain.
 
 `LINEITEM` additionally carries three fulfillment-related dates at the Sale
 Line grain: `L_SHIPDATE`, `L_COMMITDATE`, and `L_RECEIPTDATE`. These
 represent when a Sale Line was shipped, committed to ship, and received,
-respectively. The approved Business Specification does not establish any
-business meaning for shipment, commitment, or receipt as distinct from the
-Sale itself, and does not indicate that trending should be based on
-fulfillment activity rather than when the Sale was placed. No business date
-semantics beyond `O_ORDERDATE` are assumed here.
+respectively — distinct physical attributes from `O_ORDERDATE`. The
+Business Specification does not establish separate business meaning for
+shipment, commitment, or receipt; determining which date attribute(s) are
+relevant to a given business date requirement is a matter of combining
+these physical facts with the Business Specification.
 
 ## Source Relationships
 
@@ -373,10 +336,9 @@ SUPPLIER.S_NATIONKEY = NATION.N_NATIONKEY        (Vendor → Country)
 
 #### Sales Region Mapping
 
-The Business Specification's approved business decision is that **Sales
-Region represents the geographic sales region associated with the Account
-that placed the Sale**. The physical path that implements this business
-concept is:
+The Business Specification defines the authoritative meaning of Sales
+Region (see Business Terminology). The physical source path relevant to
+that business concept is:
 
 ```
 CUSTOMER.C_CUSTKEY   = ORDERS.O_CUSTKEY          (Account → Sale)
@@ -396,14 +358,6 @@ Sales Region business question.
 
 ## Open Context Questions
 
-Both previously open questions have been resolved by approved business
-decisions:
-
-* **"Completed Sales" mapping** — resolved. See
-  [Sales — Completed Sale Mapping](#sales--completed-sale-mapping).
-* **Treatment of returned Sale Lines** — resolved. See
-  [Returned Sale Lines Mapping](#returned-sale-lines-mapping).
-
-No unresolved physical interpretation questions remain for the source
-objects, KPIs, and relationships required by the approved Business
-Specification.
+No unresolved Source Context questions are currently identified for the
+source objects, physical attributes, and relationships required by the
+approved Business Specification.
