@@ -61,7 +61,10 @@ or business questions and are excluded from this context.
 
 **Relationships:** `CUSTOMER.C_NATIONKEY` → `NATION.N_NATIONKEY` (Account →
 Country). `CUSTOMER.C_CUSTKEY` is referenced by `ORDERS.O_CUSTKEY` (Account
-→ Sale).
+→ Sale). This Account → Country path, continued through
+`NATION.N_REGIONKEY` → `REGION`, is the approved geographic path for the
+business concept **Sales Region**. See
+[Sales Region Mapping](#sales-region-mapping) below.
 
 ---
 
@@ -165,7 +168,10 @@ questions and are excluded from this context.
 
 **Relationships:** `SUPPLIER.S_NATIONKEY` → `NATION.N_NATIONKEY` (Vendor →
 Country). `SUPPLIER.S_SUPPKEY` is referenced by `LINEITEM.L_SUPPKEY` (Vendor
-→ Sale Line).
+→ Sale Line). This Vendor → Country path is retained here as useful source
+lineage, but it is **not** the geographic path used for the business
+concept **Sales Region**. See
+[Sales Region Mapping](#sales-region-mapping) below.
 
 ---
 
@@ -188,7 +194,10 @@ questions and is excluded from this context.
 **Relationships:** `NATION.N_NATIONKEY` is referenced by
 `CUSTOMER.C_NATIONKEY` and `SUPPLIER.S_NATIONKEY` (Country → Account /
 Country → Vendor). `NATION.N_REGIONKEY` → `REGION.R_REGIONKEY` (Country →
-Sales Region).
+Sales Region). `NATION` is reachable from both Account and Vendor, but only
+the Account path (via `CUSTOMER.C_NATIONKEY`) is used for the approved
+Sales Region business concept. See
+[Sales Region Mapping](#sales-region-mapping) below.
 
 ---
 
@@ -355,13 +364,35 @@ LINEITEM.L_PARTKEY = PART.P_PARTKEY
 LINEITEM.L_SUPPKEY = SUPPLIER.S_SUPPKEY
 ```
 
-**Account/Vendor → Country → Sales Region**
+**Account/Vendor → Country**
 
 ```
 CUSTOMER.C_NATIONKEY = NATION.N_NATIONKEY        (Account → Country)
 SUPPLIER.S_NATIONKEY = NATION.N_NATIONKEY        (Vendor → Country)
-NATION.N_REGIONKEY   = REGION.R_REGIONKEY        (Country → Sales Region)
 ```
+
+#### Sales Region Mapping
+
+The Business Specification's approved business decision is that **Sales
+Region represents the geographic sales region associated with the Account
+that placed the Sale**. The physical path that implements this business
+concept is:
+
+```
+CUSTOMER.C_CUSTKEY   = ORDERS.O_CUSTKEY          (Account → Sale)
+CUSTOMER.C_NATIONKEY = NATION.N_NATIONKEY         (Account → Country)
+NATION.N_REGIONKEY   = REGION.R_REGIONKEY         (Country → Sales Region)
+```
+
+This Account-based path is the sole approved geographic basis for the Sales
+Region business concept, and therefore for the required business question
+"What is Revenue by Sales Region?"
+
+`SUPPLIER.S_NATIONKEY → NATION.N_NATIONKEY` (Vendor → Country) remains
+documented above as useful source lineage describing the Vendor's
+geography, but it is **not** an alternative representation of the Sales
+Region business concept and must not be used to answer the Revenue by
+Sales Region business question.
 
 ## Open Context Questions
 

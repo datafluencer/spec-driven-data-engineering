@@ -30,6 +30,11 @@ A commercial transaction placed by an Account.
 ### Sale Line
 An individual product included within a Sale.
 
+### Fulfilled Sale Line
+A Sale Line is considered fulfilled when the product associated with that
+Sale Line has completed fulfillment, as recognized by the source system's
+approved fulfillment status.
+
 ### Product
 A product offered for sale by the company.
 
@@ -40,7 +45,9 @@ An organization that supplies Products.
 The country associated with an Account or Vendor.
 
 ### Sales Region
-A geographic sales region containing one or more Countries.
+A geographic sales region containing one or more Countries. For this Sales
+Analytics data product, Sales Region represents the geographic sales region
+associated with the Account that placed the Sale.
 
 ## Required KPIs
 
