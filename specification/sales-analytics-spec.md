@@ -90,8 +90,10 @@ The completed solution must:
   Catalog.
 * Provide a Snowflake Semantic View suitable for analytical consumption and
   Snowflake Intelligence.
-* Enable the defined business concepts and measures to be used through
-  Snowflake Intelligence.
+* Provide a Snowflake Intelligence Agent that uses the governed Semantic
+  View as its semantic representation and enables natural-language
+  interaction with the Sales Analytics data product through Snowflake
+  CoWork.
 * Preserve business terminology rather than exposing source-system
   terminology as the primary consumer-facing language.
 
@@ -112,10 +114,13 @@ The implementation is considered successful when:
    Horizon Catalog.
 7. A Snowflake Semantic View exposes the required business concepts,
    relationships, dimensions, and measures.
-8. Snowflake Intelligence can use the semantic representation to answer the
-   required business questions.
-9. The completed implementation can be evaluated against these acceptance
-   criteria without relying solely on subjective human inspection.
+8. A Snowflake Intelligence Agent exists, is configured to use the
+   Semantic View from Criterion 7 as its governed semantic
+   representation, and is usable through Snowflake CoWork.
+9. The four required business questions can be answered through
+   natural-language interaction with that Agent in Snowflake CoWork.
+10. The completed implementation can be evaluated against these acceptance
+    criteria without relying solely on subjective human inspection.
 
 ## Important Design Principle
 

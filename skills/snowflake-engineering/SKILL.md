@@ -77,6 +77,24 @@ unnecessary schema proliferation for small data products.
 Specific project database names and environment names belong to project
 context, not this reusable Skill.
 
+### Delivered Business Data-Product Schema
+
+The schema hosting the delivered, consumer-facing business data product
+must not be the Snowflake `PUBLIC` schema. `PUBLIC` is a default system
+schema, not a governed business-domain location, and must not be used as
+the destination for governed analytical data-product objects.
+
+When an approved target schema for the data product has not been
+explicitly established by project context, the engineering agent must
+derive a business-domain-oriented schema name from the approved Business
+Specification (and Source Context where necessary), create that schema if
+it does not already exist, and name it according to
+`skills/naming-standards/SKILL.md`. The derived name must be reasonably
+traceable to the business domain described by the approved Business
+Specification. Do not invent a business domain that cannot reasonably be
+derived from approved artifacts, and do not default to `PUBLIC` merely
+because a schema name was not explicitly provided.
+
 ## Naming
 
 Apply `skills/naming-standards/SKILL.md`. Physical Snowflake objects should
@@ -239,6 +257,22 @@ can be answered correctly using the governed semantic representation. Do
 not optimize solely for producing a plausible natural-language answer.
 Correct business meaning and metric behavior take precedence.
 
+## Snowflake Intelligence Agents and CoWork
+
+When the Business Specification requires natural-language consumption
+through a Snowflake Intelligence Agent or Snowflake CoWork, treat the
+Semantic View and the Agent as distinct, connected capabilities. The
+Semantic View is the governed semantic representation of approved business
+concepts, measures, relationships, and grain. The Agent is a separate
+consumption capability that must be configured to use that governed
+Semantic View as its semantic source rather than redefining business
+meaning independently.
+
+Do not embed new business logic, metric definitions, or semantic meaning
+directly in Agent configuration. Any business meaning surfaced by the
+Agent must already be governed by the Semantic View or other approved
+artifacts.
+
 ## Horizon Catalog Boundary
 
 Snowflake Horizon Catalog governance is a distinct responsibility. This
@@ -317,7 +351,9 @@ An engineering agent applying this Skill must:
 14. Implement the minimum coherent Semantic View required by the
     specification.
 15. Ensure the semantic representation is suitable for required Snowflake
-    Intelligence consumption when applicable.
+    Intelligence consumption, and configure any required Snowflake
+    Intelligence Agent to use that governed Semantic View, when
+    applicable.
 16. Apply Data Quality & Testing standards.
 17. Evaluate required business questions.
 18. Evaluate every applicable acceptance criterion as PASS, FAIL, or
